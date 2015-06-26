@@ -23,50 +23,72 @@ NAME="kibana"
 PIDFILE="/var/run/kibana/kibana.pid"
 KIBANA_DIR="/opt/kibana"
 KIBANA_USER="kibana"
+NODE=${KIBANA_DIR}/node/bin/node
+SERVER=${KIBANA_DIR}/src/bin/kibana.js
+CONFIG_PATH="${KIBANA_DIR}/config/kibana.yml" 
+NODE_ENV="production" 
 
-#if [ $? -ne 0 ] ; then
-#  echo Kibana not starting. Set PID in ${KIBANA_DIR}/config/kibana.yaml
-#fi
+grep "^pid_file: ${PIDFILE}" "${CONFIG_PATH}" &> /dev/null
+if [ $? -ne 0 ] ; then
+    echo Kibana not starting. 
+    echo Set PID in ${CONFIG_PATH}:
+    echo logfile: ${PIDFILE}
+    exit 1
+fi
 
 start() {
-        echo -n "Starting Kibana Daemon: "
-        daemon --user $KIBANA_USER --pidfile=$PIDFILE "$KIBANA_DIR/bin/$NAME"
-        retval=$?
-        echo
-        return $retval
+    echo -n "Starting Kibana Daemon: "
+    daemon --user ${KIBANA_USER} "CONFIG_PATH='${CONFIG_PATH}' NODE_ENV='${NODE_ENV}' ${NODE}" "${SERVER} &"
+    retval=$?
+    echo
+    return $retval
 }
 
 stop() {
-        echo -n "Shutting down Kibana Daemon: "
-        killproc -p $PIDFILE $NAME
-        retval=$?
-        echo
-        return $retval
+    echo -n "Shutting down Kibana Daemon: "
+    killproc -p $PIDFILE $NAME
+    retval=$?
+    echo
+    return $retval
 }
 
-rh_status() {
+check_status() {
     status -p $PIDFILE $NAME
 }
 
-rh_status_q() {
-    rh_status >/dev/null 2>&1
+check_running() {
+    status -p $PIDFILE $NAME >&  /dev/null
+    if [ $? -ne 0 ] ; then
+        echo ${NAME} not running
+        exit 1
+    fi
 }
 
+check_stopped() {
+    status -p $PIDFILE $NAME >&  /dev/null
+    if [ $? -eq 0 ] ; then
+        echo ${NAME} already running
+        exit 1
+    fi
+}
 
 case "$1" in
     start)
-        rh_status_q && exit 0
+        check_stopped
         start
         ;;
     stop)
-        rh_status_q || exit 0
+        check_running
         stop
         ;;
     status)
-        rh_status
+        checkstatus
         ;;
     restart)
-        stop
+        status -p $PIDFILE $NAME >&  /dev/null
+        if [ $? -eq 0 ] ; then
+           stop
+        fi
         start
         ;;
     *)
