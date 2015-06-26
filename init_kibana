@@ -4,7 +4,7 @@
 #
 # chkconfig: - 85 15
 # processname: kibana
-# pidfile: /var/run/kibana.pid
+# pidfile: /var/run/kibana/kibana.pid
 # description: Kibana is a webui to visualize data
 #
 ### BEGIN INIT INFO
@@ -19,41 +19,51 @@
 #
 . /etc/init.d/functions
 
-PIDFILE="/var/run/kibana.pid"
-KIBANA_DIR="/opt/kibana/"
+NAME="kibana"
+PIDFILE="/var/run/kibana/kibana.pid"
+KIBANA_DIR="/opt/kibana"
+KIBANA_USER="kibana"
+
+#if [ $? -ne 0 ] ; then
+#  echo Kibana not starting. Set PID in ${KIBANA_DIR}/config/kibana.yaml
+#fi
 
 start() {
         echo -n "Starting Kibana Daemon: "
-        if [ -f $PIDFILE ]; then
-                PID=`cat $PIDFILE`
-                echo Kibana already running: $PID
-                exit 1;
-        else
-                cd $KIBANA_DIR
-                PID=`./bin/kibana >/dev/null 2>&1 & echo $! > $PIDFILE`
-                echo `cat $PIDFILE`
-        fi
-
+        daemon --user $KIBANA_USER --pidfile=$PIDFILE "$KIBANA_DIR/bin/$NAME"
+        retval=$?
+        echo
+        return $retval
 }
 
 stop() {
         echo -n "Shutting down Kibana Daemon: "
+        killproc -p $PIDFILE $NAME
+        retval=$?
         echo
-        killproc kibana
-        echo
-        rm -f /var/lock/subsys/kibana
-        return 0
+        return $retval
 }
+
+rh_status() {
+    status -p $PIDFILE $NAME
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
 
 case "$1" in
     start)
+        rh_status_q && exit 0
         start
         ;;
     stop)
+        rh_status_q || exit 0
         stop
         ;;
     status)
-        status kibana
+        rh_status
         ;;
     restart)
         stop
